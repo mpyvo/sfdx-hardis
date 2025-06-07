@@ -444,6 +444,14 @@ ${Project2Markdown.htmlInstructions}
   }
 
   private async generatePackagesDocumentation() {
+    uxLog(this, c.cyan("Generating packages documentation... (if you don't want it, define GENERATE_PACKAGES_DOC=false in your environment variables)"));
+
+    const packagesXMLFiles = (await glob("**/installedPackages/**.installedPackage-meta.xml", {
+      cwd: process.cwd(),
+      ignore: GLOB_IGNORE_PATTERNS
+    }));
+    sortCrossPlatform(packagesXMLFiles);
+
     const packagesForMenu: any = { "All Packages": "packages/index.md" }
     // List packages
     const packages = this.sfdxHardisConfig.installedPackages || [];     // CI/CD context
@@ -458,6 +466,28 @@ ${Project2Markdown.htmlInstructions}
         }
         const pckg = await fs.readJSON(packageFileFull);
         packages.push(pckg);
+      }
+     } else if (packagesXMLFiles) {
+      for (const packagesXMLFile of packagesXMLFiles) {
+        const packagesXMLName = path.basename(packagesXMLFile, ".installedPackage-meta.xml");
+        const mdFile = path.join(this.outputMarkdownRoot, "installedPackages", packagesXMLName + ".md");
+
+        packagesForMenu[packagesXMLName] = "installedPackages/" + packagesXMLName + ".md";
+        const packageXml = await fs.readFile(packagesXMLFile, "utf8");
+
+        const packageXmlParsed = new XMLParser().parse(packageXml);
+        this.packageDescriptions.push({
+          name: packageXmlParsed.name,
+          namespace: packageXmlParsed.SubscriberPackageNamespace || "None",
+          versionNumber: packageXmlParsed.SubscriberPackageVersionNumber || "Unknown",
+          versionName: packageXmlParsed.SubscriberPackageVersionName || "Unknown",
+          versionId: packageXmlParsed.SubscriberPackageVersionId || "Unknown",
+        });
+
+        // TODO: DocBuilderPackage implementation
+        if (this.withPdf) {
+          await generatePdfFileFromMarkdown(mdFile);
+        }
       }
     }
     // Process packages
